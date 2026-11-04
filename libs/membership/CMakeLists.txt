@@ -1,0 +1,7 @@
+add_library(cn_membership STATIC src/module.cpp)
+add_library(cn::membership ALIAS cn_membership)
+target_include_directories(cn_membership PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(cn_membership PUBLIC cn::common)
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()

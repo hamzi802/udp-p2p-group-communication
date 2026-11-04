@@ -1,0 +1,932 @@
+{
+  "repository": "hamzi802/udp-p2p-group-communication",
+  "timezone": "Asia/Karachi",
+  "deadline_note": "Proposed internal checkpoints; not confirmed instructor deadlines.",
+  "roles": {
+    "M1": "Musab-Farooq",
+    "M2": "hamzi802",
+    "M3": "Byte-sized-Ali",
+    "M4": "hamzayousuf717-ops"
+  },
+  "milestones": [
+    {
+      "key": "MS1",
+      "title": "MS1 — Project foundation",
+      "day": 4,
+      "description": "Agree shared interfaces, protocol and metadata; establish C++17/CMake layout, CI and review workflow.",
+      "due_on": "2026-11-04T18:59:59Z"
+    },
+    {
+      "key": "MS2",
+      "title": "MS2 — Separate module demonstrations",
+      "day": 8,
+      "description": "Each role demonstrates its module independently with real transport or agreed fakes.",
+      "due_on": "2026-11-08T18:59:59Z"
+    },
+    {
+      "key": "MS3",
+      "title": "MS3 — Reliable communication",
+      "day": 15,
+      "description": "Four-peer membership/chat, reliable UDP and basic chunk transfers work under loss and reordering.",
+      "due_on": "2026-11-15T18:59:59Z"
+    },
+    {
+      "key": "MS4",
+      "title": "MS4 — Complete distributed file sharing",
+      "day": 22,
+      "description": "Verified distributed storage, replicated metadata, joining storage and multi-source download failover work.",
+      "due_on": "2026-11-22T18:59:59Z"
+    },
+    {
+      "key": "MS5",
+      "title": "MS5 — Final verification and demonstration",
+      "day": 29,
+      "description": "Four-computer/eight-file and fifth-peer demos, failure tests, report and final release review. I44 is optional.",
+      "due_on": "2026-11-29T18:59:59Z"
+    }
+  ],
+  "issues": [
+    {
+      "plan_id": "I01",
+      "milestone": "MS1",
+      "title": "Repository folders and root CMake configuration",
+      "role": "M4",
+      "assignee": "hamzayousuf717-ops",
+      "dependencies": [],
+      "paths": "CMakeLists.txt; apps/; libs/; tests/; scripts/",
+      "checks": [
+        "Create the proposal's apps and library folders with public include/, src/ and tests/ directories.",
+        "Build with C++17 using target-based CMake; common is header-only INTERFACE.",
+        "A clean configure and build succeeds; generated build output is ignored."
+      ],
+      "due": "2026-11-04",
+      "optional": false,
+      "number": 1
+    },
+    {
+      "plan_id": "I02",
+      "milestone": "MS1",
+      "title": "Shared C++ interfaces and common types",
+      "role": "M1",
+      "assignee": "Musab-Farooq",
+      "dependencies": [
+        "I01"
+      ],
+      "paths": "libs/common/include/common/",
+      "checks": [
+        "Agree ITransport, IPeerDirectory, IChunkStore and IChunkFetcher with all consumers.",
+        "Use fixed-width IDs, endpoint/session types and virtual interface destructors.",
+        "Document asynchronous completion, callback lifetime, cancellation, queue-full and failure results; compile a fake consumer."
+      ],
+      "due": "2026-11-04",
+      "optional": false,
+      "number": 2
+    },
+    {
+      "plan_id": "I03",
+      "milestone": "MS1",
+      "title": "Protocol envelope and operation sequences",
+      "role": "M1",
+      "assignee": "Musab-Farooq",
+      "dependencies": [
+        "I02"
+      ],
+      "paths": "docs/protocol.md",
+      "checks": [
+        "Specify the proposed 48-byte header, offsets, network byte order, numeric message types and payload layouts.",
+        "Define JOIN nonce/session handshake, ACK/SACK semantics, sequence wraparound and 1200-byte datagram limit.",
+        "Freeze CRC variant with a known vector; document malformed and stale-packet rejection plus join/chat/chunk flows."
+      ],
+      "due": "2026-11-04",
+      "optional": false,
+      "number": 3
+    },
+    {
+      "plan_id": "I04",
+      "milestone": "MS1",
+      "title": "Manifest and replica metadata specification",
+      "role": "M3",
+      "assignee": "Byte-sized-Ali",
+      "dependencies": [
+        "I02"
+      ],
+      "paths": "docs/storage-format.md; libs/common/include/common/",
+      "checks": [
+        "Define file ID, total size, chunk size/count, final chunk length and full/chunk SHA-256 hashes.",
+        "Distinguish desired replica placement from confirmed verified holders.",
+        "Specify paged catalog/manifest/HAVE metadata with bounds and consistency rules."
+      ],
+      "due": "2026-11-04",
+      "optional": false,
+      "number": 4
+    },
+    {
+      "plan_id": "I05",
+      "milestone": "MS1",
+      "title": "Project board, labels, milestones and issue/PR templates",
+      "role": "M2",
+      "assignee": "hamzi802",
+      "dependencies": [],
+      "paths": ".github/; docs/project-plan.md",
+      "checks": [
+        "Create five dated milestones and assign all proposal issues to the correct role.",
+        "Provide task and PR templates with owner, deadline, dependencies, files and acceptance evidence.",
+        "Create a project board with Backlog, Ready, In progress, In review and Done; show assignee, target date and priority."
+      ],
+      "due": "2026-11-04",
+      "optional": false,
+      "number": 5
+    },
+    {
+      "plan_id": "I06",
+      "milestone": "MS1",
+      "title": "M1/M2 code owners, Copilot and main branch rules",
+      "role": "M2",
+      "assignee": "hamzi802",
+      "dependencies": [
+        "I05"
+      ],
+      "paths": ".github/CODEOWNERS; repository settings",
+      "checks": [
+        "Set Musab-Farooq and hamzi802 as code owners with write access.",
+        "Require a PR, one independent human/code-owner approval, resolved conversations and passing build/test checks where supported.",
+        "Request Copilot as additional review where available; do not count its approval as human approval. M1 reviews M2; M2 reviews M1."
+      ],
+      "due": "2026-11-04",
+      "optional": false,
+      "number": 6
+    },
+    {
+      "plan_id": "I07",
+      "milestone": "MS1",
+      "title": "Initial CMake build and CTest CI workflow",
+      "role": "M4",
+      "assignee": "hamzayousuf717-ops",
+      "dependencies": [
+        "I01"
+      ],
+      "paths": ".github/workflows/ci.yml; tests/",
+      "checks": [
+        "Run configure, build and registered CTest tests on pushes and PRs.",
+        "Fail CI when no tests are registered; keep token permissions read-only.",
+        "Show a passing clean build and a failing-check example; module owners add behavioral tests as features arrive."
+      ],
+      "due": "2026-11-04",
+      "optional": false,
+      "number": 7
+    },
+    {
+      "plan_id": "I08",
+      "milestone": "MS2",
+      "title": "Packet encoding, decoding and validation",
+      "role": "M1",
+      "assignee": "Musab-Farooq",
+      "dependencies": [
+        "I02",
+        "I03"
+      ],
+      "paths": "libs/rudp/",
+      "checks": [
+        "Round-trip every header field and payload using explicit serialization, not raw C++ memory.",
+        "Reject short/oversized packets, invalid lengths, bad CRC and unsupported versions.",
+        "Add boundary and known-vector tests, including network byte order."
+      ],
+      "due": "2026-11-08",
+      "optional": false,
+      "number": 8
+    },
+    {
+      "plan_id": "I09",
+      "milestone": "MS2",
+      "title": "UDP socket wrapper and two-process demo",
+      "role": "M1",
+      "assignee": "Musab-Farooq",
+      "dependencies": [
+        "I08"
+      ],
+      "paths": "libs/rudp/; apps/rudp_demo/",
+      "checks": [
+        "Wrap POSIX UDP socket lifecycle with automatic cleanup and nonblocking reads.",
+        "Demonstrate two real processes sending/receiving encoded packets.",
+        "Handle bind/send/receive errors and establish that only the transport reads the socket."
+      ],
+      "due": "2026-11-08",
+      "optional": false,
+      "number": 9
+    },
+    {
+      "plan_id": "I10",
+      "milestone": "MS2",
+      "title": "Peer table and /peers command",
+      "role": "M2",
+      "assignee": "hamzi802",
+      "dependencies": [
+        "I02"
+      ],
+      "paths": "libs/membership/; apps/peer/",
+      "checks": [
+        "Store peer ID, session, display name, endpoint, last-seen time and state.",
+        "Add four fake peers, reject duplicate identity entries, remove one and display the right list.",
+        "Test an empty list and join/update/remove behavior without real networking."
+      ],
+      "due": "2026-11-08",
+      "optional": false,
+      "number": 10
+    },
+    {
+      "plan_id": "I11",
+      "milestone": "MS2",
+      "title": "Bootstrap JOIN, WELCOME and HELLO",
+      "role": "M2",
+      "assignee": "hamzi802",
+      "dependencies": [
+        "I03",
+        "I10",
+        "I14"
+      ],
+      "paths": "libs/membership/; apps/peer/",
+      "checks": [
+        "Join through any existing peer using JOIN/WELCOME/HELLO and a correlated join nonce.",
+        "Handle repeated/lost join messages safely, reject stale welcome replies, and synchronize paged peer lists.",
+        "Use fake transport first, then verify four real peers can agree on the group without a permanent coordinator."
+      ],
+      "due": "2026-11-08",
+      "optional": false,
+      "number": 11
+    },
+    {
+      "plan_id": "I12",
+      "milestone": "MS2",
+      "title": "Fixed-size chunking and SHA-256 hashing",
+      "role": "M3",
+      "assignee": "Byte-sized-Ali",
+      "dependencies": [
+        "I04"
+      ],
+      "paths": "libs/hashing/; libs/filestore/; apps/chunk_tool/",
+      "checks": [
+        "Split a binary 2 MiB file into 128 chunks of 16 KiB; preserve a short last chunk.",
+        "Use a maintained SHA-256 implementation behind a reusable wrapper.",
+        "Reconstruct identical bytes; test empty/small inputs and corrupted data according to documented input policy."
+      ],
+      "due": "2026-11-08",
+      "optional": false,
+      "number": 12
+    },
+    {
+      "plan_id": "I13",
+      "milestone": "MS2",
+      "title": "Local chunk store and manifest generation",
+      "role": "M3",
+      "assignee": "Byte-sized-Ali",
+      "dependencies": [
+        "I12",
+        "I04"
+      ],
+      "paths": "libs/filestore/",
+      "checks": [
+        "Implement IChunkStore for verified binary chunks keyed by file ID and chunk index.",
+        "Generate complete manifests with full-file and per-chunk hashes.",
+        "Keep originals/downloads separate; reject invalid paths/indexes and handle missing chunks/disk failures."
+      ],
+      "due": "2026-11-08",
+      "optional": false,
+      "number": 13
+    },
+    {
+      "plan_id": "I14",
+      "milestone": "MS2",
+      "title": "Fake transport, peer directory, store and clock",
+      "role": "M4",
+      "assignee": "hamzayousuf717-ops",
+      "dependencies": [
+        "I02",
+        "I04"
+      ],
+      "paths": "tests/support/",
+      "checks": [
+        "Provide fakes implementing the four agreed service contracts and a controllable clock.",
+        "Simulate delivery, loss, duplicate/reordered replies, unavailable sources and queue-full outcomes deterministically.",
+        "Give M2/M3/M4 small usage examples; no real sleeps or sockets are required for unit tests."
+      ],
+      "due": "2026-11-08",
+      "optional": false,
+      "number": 14
+    },
+    {
+      "plan_id": "I15",
+      "milestone": "MS2",
+      "title": "Chunk scheduler demonstration using fakes",
+      "role": "M4",
+      "assignee": "hamzayousuf717-ops",
+      "dependencies": [
+        "I14",
+        "I04"
+      ],
+      "paths": "libs/filetransfer/; apps/download_demo/",
+      "checks": [
+        "Schedule different chunks from two simulated remote sources with bounded concurrency.",
+        "Remove one source before reply and choose a confirmed alternate holder.",
+        "Log request/chunk/source IDs and completion; demonstrate explicit failure when all copies are unavailable."
+      ],
+      "due": "2026-11-08",
+      "optional": false,
+      "number": 15
+    },
+    {
+      "plan_id": "I16",
+      "milestone": "MS3",
+      "title": "ACK tracking, retries, backoff and failure reporting",
+      "role": "M1",
+      "assignee": "Musab-Farooq",
+      "dependencies": [
+        "I08",
+        "I09"
+      ],
+      "paths": "libs/rudp/",
+      "checks": [
+        "Track unacknowledged packets per peer session/stream and process ACK/SACK correctly.",
+        "Retry with documented timeout/backoff and retry limits; ACKs must not require ACKs.",
+        "Test lost data, lost ACK, exhausted retries and nonblocking success/failure reporting."
+      ],
+      "due": "2026-11-15",
+      "optional": false,
+      "number": 17
+    },
+    {
+      "plan_id": "I17",
+      "milestone": "MS3",
+      "title": "Sequence ordering and duplicate suppression",
+      "role": "M1",
+      "assignee": "Musab-Farooq",
+      "dependencies": [
+        "I16"
+      ],
+      "paths": "libs/rudp/",
+      "checks": [
+        "Deliver once and in order per sender/session/stream using a bounded reorder buffer.",
+        "ACK duplicate packets again without duplicate application delivery.",
+        "Test reordering, gaps, duplicates and sequence wraparound; define behavior on unrecoverable gaps."
+      ],
+      "due": "2026-11-15",
+      "optional": false,
+      "number": 18
+    },
+    {
+      "plan_id": "I18",
+      "milestone": "MS3",
+      "title": "Separate streams, bounded queues and receive window",
+      "role": "M1",
+      "assignee": "Musab-Farooq",
+      "dependencies": [
+        "I16",
+        "I17"
+      ],
+      "paths": "libs/rudp/",
+      "checks": [
+        "Maintain independent control/chat and bulk-file sequence/queue state.",
+        "Respect advertised receive windows and return queue-full instead of unbounded buffering.",
+        "Under file load demonstrate that control/chat traffic and timers still make progress."
+      ],
+      "due": "2026-11-15",
+      "optional": false,
+      "number": 19
+    },
+    {
+      "plan_id": "I19",
+      "milestone": "MS3",
+      "title": "Heartbeat, LEAVE and crash detection",
+      "role": "M2",
+      "assignee": "hamzi802",
+      "dependencies": [
+        "I11",
+        "I14"
+      ],
+      "paths": "libs/membership/",
+      "checks": [
+        "Send heartbeats, track last-seen times and notify consumers on membership changes.",
+        "Process graceful LEAVE and mark a timed-out peer suspected/unreachable, not proven crashed.",
+        "Use a fake clock to test delayed/lost heartbeats, reappearance and session restart behavior."
+      ],
+      "due": "2026-11-15",
+      "optional": false,
+      "number": 20
+    },
+    {
+      "plan_id": "I20",
+      "milestone": "MS3",
+      "title": "Ordered four-peer group chat",
+      "role": "M2",
+      "assignee": "hamzi802",
+      "dependencies": [
+        "I11",
+        "I17",
+        "I19"
+      ],
+      "paths": "libs/chat/; apps/peer/",
+      "checks": [
+        "Fan out CHAT to active remote peers using ITransport; show local messages once.",
+        "Preserve sender/session identity, per-sender order and duplicate-free display.",
+        "Demonstrate four-peer chat and visible delivery failure; do not promise global order across senders."
+      ],
+      "due": "2026-11-15",
+      "optional": false,
+      "number": 21
+    },
+    {
+      "plan_id": "I21",
+      "milestone": "MS3",
+      "title": "Two-holder placement and storage invariant checks",
+      "role": "M3",
+      "assignee": "Byte-sized-Ali",
+      "dependencies": [
+        "I13",
+        "I10"
+      ],
+      "paths": "libs/filestore/",
+      "checks": [
+        "Choose two distinct holders per chunk using an agreed sorted membership snapshot and deterministic file offset.",
+        "Verify no peer holds every managed chunk for supported files and peer counts.",
+        "Test four/five peers, insufficient peers and short-file limits; never infer actual holders from desired placement."
+      ],
+      "due": "2026-11-15",
+      "optional": false,
+      "number": 22
+    },
+    {
+      "plan_id": "I22",
+      "milestone": "MS3",
+      "title": "Chunk request/data/error and block reassembly",
+      "role": "M4",
+      "assignee": "hamzayousuf717-ops",
+      "dependencies": [
+        "I15",
+        "I13",
+        "I16"
+      ],
+      "paths": "libs/filetransfer/",
+      "checks": [
+        "Implement CHUNK_REQUEST, CHUNK_DATA and CHUNK_ERROR with request/file/chunk/block identity.",
+        "Split storage chunks into payloads fitting the datagram budget; reassemble with duplicate-safe block tracking.",
+        "Bound allocations, serve chunks through IChunkStore, reject stale/invalid blocks and report missing/busy/error cases."
+      ],
+      "due": "2026-11-15",
+      "optional": false,
+      "number": 23
+    },
+    {
+      "plan_id": "I23",
+      "milestone": "MS3",
+      "title": "Real UDP loss, duplicate and reorder tests",
+      "role": "M4",
+      "assignee": "hamzayousuf717-ops",
+      "dependencies": [
+        "I17",
+        "I18",
+        "I20",
+        "I22"
+      ],
+      "paths": "tests/integration/; scripts/",
+      "checks": [
+        "Inject reproducible recoverable packet loss, duplication, reordering and lost ACKs between real processes.",
+        "Verify ordered single chat delivery and correct block transfer with fixed seeds.",
+        "Record permanent-failure and bounded-memory evidence; fakes alone do not satisfy this issue."
+      ],
+      "due": "2026-11-15",
+      "optional": false,
+      "number": 24
+    },
+    {
+      "plan_id": "I24",
+      "milestone": "MS4",
+      "title": "Initial chunk distribution and storage confirmation",
+      "role": "M3",
+      "assignee": "Byte-sized-Ali",
+      "dependencies": [
+        "I21",
+        "I22"
+      ],
+      "paths": "libs/filestore/; libs/filetransfer/",
+      "checks": [
+        "Use M4's transfer service to seed chosen replica holders.",
+        "Advertise holders only after hash verification and successful storage confirmation; transport ACK alone is insufficient.",
+        "Prove two distinct verified replicas per chunk before declaring distribution complete; preserve original files."
+      ],
+      "due": "2026-11-22",
+      "optional": false,
+      "number": 25
+    },
+    {
+      "plan_id": "I25",
+      "milestone": "MS4",
+      "title": "Replicated catalog, manifests and holder records",
+      "role": "M3",
+      "assignee": "Byte-sized-Ali",
+      "dependencies": [
+        "I24",
+        "I04"
+      ],
+      "paths": "libs/filestore/",
+      "checks": [
+        "Replicate paged catalog/manifests and confirmed HAVE records to other peers.",
+        "Merge/retry metadata safely and validate sizes, indexes and page counts.",
+        "After publisher departure, a survivor can locate metadata and confirmed chunk sources."
+      ],
+      "due": "2026-11-22",
+      "optional": false,
+      "number": 26
+    },
+    {
+      "plan_id": "I26",
+      "milestone": "MS4",
+      "title": "Joining-peer metadata and storage handoff",
+      "role": "M3",
+      "assignee": "Byte-sized-Ali",
+      "dependencies": [
+        "I25",
+        "I11"
+      ],
+      "paths": "libs/filestore/",
+      "checks": [
+        "Give a newcomer the catalog, manifests and holder records; compute its desired storage share.",
+        "Fetch assigned chunks through IChunkFetcher and verify/store them before advertising.",
+        "Keep old good replicas until replacements are confirmed; test interrupted handoff."
+      ],
+      "due": "2026-11-22",
+      "optional": false,
+      "number": 27
+    },
+    {
+      "plan_id": "I27",
+      "milestone": "MS4",
+      "title": "Parallel download using two remote sources",
+      "role": "M4",
+      "assignee": "hamzayousuf717-ops",
+      "dependencies": [
+        "I22",
+        "I25"
+      ],
+      "paths": "libs/filetransfer/",
+      "checks": [
+        "Keep overlapping chunk requests active against at least two distinct remote holders.",
+        "Use bounded queues and fair source scheduling; reuse already verified local chunks.",
+        "Logs prove source overlap and correctly ordered output assembly."
+      ],
+      "due": "2026-11-22",
+      "optional": false,
+      "number": 28
+    },
+    {
+      "plan_id": "I28",
+      "milestone": "MS4",
+      "title": "Source failover retaining verified progress",
+      "role": "M4",
+      "assignee": "hamzayousuf717-ops",
+      "dependencies": [
+        "I27",
+        "I19"
+      ],
+      "paths": "libs/filetransfer/",
+      "checks": [
+        "On timeout, source departure or corruption, reassign unfinished work to another confirmed holder.",
+        "Preserve verified progress and ignore late replies from cancelled/replaced requests.",
+        "Finish after one source crashes; report unavailable chunks when all copies are lost."
+      ],
+      "due": "2026-11-22",
+      "optional": false,
+      "number": 29
+    },
+    {
+      "plan_id": "I29",
+      "milestone": "MS4",
+      "title": "Per-chunk and complete-file hash verification",
+      "role": "M4",
+      "assignee": "hamzayousuf717-ops",
+      "dependencies": [
+        "I27",
+        "I12"
+      ],
+      "paths": "libs/filetransfer/; libs/hashing/",
+      "checks": [
+        "Verify every completed chunk against its manifest and final output against the full-file SHA-256.",
+        "Reject corrupt chunks and retry a valid replica without declaring false success.",
+        "Test corrupt/truncated data, final-hash mismatch, output path validation and disk-write failure."
+      ],
+      "due": "2026-11-22",
+      "optional": false,
+      "number": 30
+    },
+    {
+      "plan_id": "I30",
+      "milestone": "MS4",
+      "title": "File commands and responsive chat during transfers",
+      "role": "M2",
+      "assignee": "hamzi802",
+      "dependencies": [
+        "I20",
+        "I25",
+        "I27",
+        "I28",
+        "I29"
+      ],
+      "paths": "apps/peer/; libs/chat/",
+      "checks": [
+        "Implement /share, /files and /get by calling M3/M4 services; /quit exits cleanly.",
+        "Wire one nonblocking event loop for CLI, transport, timers and service callbacks.",
+        "During a large transfer demonstrate responsive chat, heartbeats, help and actionable errors."
+      ],
+      "due": "2026-11-22",
+      "optional": false,
+      "number": 31
+    },
+    {
+      "plan_id": "I31",
+      "milestone": "MS4",
+      "title": "Restart, stale-packet and queue-failure handling",
+      "role": "M1",
+      "assignee": "Musab-Farooq",
+      "dependencies": [
+        "I18",
+        "I11",
+        "I22"
+      ],
+      "paths": "libs/rudp/; libs/common/; docs/protocol.md",
+      "checks": [
+        "Reset peer-pair state on accepted new sessions and reject stale packets/ACKs.",
+        "Handle queue limits, retries exhausted and disconnect callbacks consistently across consumers.",
+        "Test either peer restarting, old WELCOME/ACK/data arrivals and cancellation cleanup."
+      ],
+      "due": "2026-11-22",
+      "optional": false,
+      "number": 32
+    },
+    {
+      "plan_id": "I32",
+      "milestone": "MS5",
+      "title": "Four-computer eight-file demonstration",
+      "role": "M4",
+      "assignee": "hamzayousuf717-ops",
+      "dependencies": [
+        "I24",
+        "I30"
+      ],
+      "paths": "scripts/; docs/demo.md",
+      "checks": [
+        "Run the same application on four LAN computers with separate data directories.",
+        "Each of four members shares two files of at least 2 MiB: eight files total.",
+        "Capture commands, membership, hashes, placement and successful retrieval evidence."
+      ],
+      "due": "2026-11-29",
+      "optional": false,
+      "number": 33
+    },
+    {
+      "plan_id": "I33",
+      "milestone": "MS5",
+      "title": "Bootstrap departure continuity test",
+      "role": "M2",
+      "assignee": "hamzi802",
+      "dependencies": [
+        "I20",
+        "I19"
+      ],
+      "paths": "tests/integration/; docs/demo.md",
+      "checks": [
+        "Start four peers via A, then gracefully stop A.",
+        "Verify B/C/D keep communicating and can discover files without contacting A.",
+        "Record repeatable steps and actual results with no hidden server dependency."
+      ],
+      "due": "2026-11-29",
+      "optional": false,
+      "number": 34
+    },
+    {
+      "plan_id": "I34",
+      "milestone": "MS5",
+      "title": "Fifth-peer joining and storage acquisition test",
+      "role": "M2",
+      "assignee": "hamzi802",
+      "dependencies": [
+        "I26",
+        "I33"
+      ],
+      "paths": "tests/integration/; docs/demo.md",
+      "checks": [
+        "After the original bootstrap leaves, join E through a surviving peer.",
+        "Verify all active peer lists converge and E receives catalog/manifests and its verified storage share.",
+        "Show the peer list grows without recompilation or a fixed four-peer array."
+      ],
+      "due": "2026-11-29",
+      "optional": false,
+      "number": 35
+    },
+    {
+      "plan_id": "I35",
+      "milestone": "MS5",
+      "title": "Replica placement and publisher-departure tests",
+      "role": "M3",
+      "assignee": "Byte-sized-Ali",
+      "dependencies": [
+        "I25",
+        "I26"
+      ],
+      "paths": "libs/filestore/tests/; tests/integration/",
+      "checks": [
+        "Before failure, verify two distinct confirmed holders per chunk and no complete managed copy.",
+        "Stop the publisher; prove metadata survives and remaining holders support retrieval when copies remain.",
+        "Report degraded replica counts after failure honestly; optional repair is separate from required download failover."
+      ],
+      "due": "2026-11-29",
+      "optional": false,
+      "number": 36
+    },
+    {
+      "plan_id": "I36",
+      "milestone": "MS5",
+      "title": "Two-source download with a crashed source",
+      "role": "M4",
+      "assignee": "hamzayousuf717-ops",
+      "dependencies": [
+        "I28",
+        "I29"
+      ],
+      "paths": "tests/integration/; docs/demo.md",
+      "checks": [
+        "Start overlapping requests to two remote peers and terminate one during transfer.",
+        "Finish through surviving replicas while retaining verified work.",
+        "Provide source/request logs and matching final SHA-256 as evidence."
+      ],
+      "due": "2026-11-29",
+      "optional": false,
+      "number": 37
+    },
+    {
+      "plan_id": "I37",
+      "milestone": "MS5",
+      "title": "Full loss, corruption and failure test suite",
+      "role": "M4",
+      "assignee": "hamzayousuf717-ops",
+      "dependencies": [
+        "I23",
+        "I31",
+        "I35",
+        "I36"
+      ],
+      "paths": "tests/; scripts/; docs/testing.md",
+      "checks": [
+        "Cover packet/ACK loss, duplicates, reordering, corruption, missing replicas and restarts.",
+        "Include queue exhaustion, malformed metadata and disk-write failures without unbounded allocation.",
+        "Document deterministic seeds, expected/actual outcomes and clear known limitations."
+      ],
+      "due": "2026-11-29",
+      "optional": false,
+      "number": 38
+    },
+    {
+      "plan_id": "I38",
+      "milestone": "MS5",
+      "title": "Clean-clone build and registered-test verification",
+      "role": "M4",
+      "assignee": "hamzayousuf717-ops",
+      "dependencies": [
+        "I07",
+        "I37"
+      ],
+      "paths": "README.md; .github/workflows/ci.yml",
+      "checks": [
+        "From a fresh clone, run the documented CMake configure/build/CTest commands successfully.",
+        "Verify dependencies and library versions are documented and no generated/local data is needed.",
+        "CTest must run real module/integration tests, not just the initial skeleton smoke check."
+      ],
+      "due": "2026-11-29",
+      "optional": false,
+      "number": 39
+    },
+    {
+      "plan_id": "I39",
+      "milestone": "MS5",
+      "title": "Transport and protocol report section",
+      "role": "M1",
+      "assignee": "Musab-Farooq",
+      "dependencies": [
+        "I31"
+      ],
+      "paths": "docs/reports/transport.md",
+      "checks": [
+        "Explain serialization, sessions, ACK/SACK, ordering, retries, streams and bounded buffers.",
+        "Include packet examples, design assumptions, limitations and linked test evidence.",
+        "Walk M2 and M4 through the interface and answer retry/restart questions."
+      ],
+      "due": "2026-11-29",
+      "optional": false,
+      "number": 40
+    },
+    {
+      "plan_id": "I40",
+      "milestone": "MS5",
+      "title": "Membership and chat report section",
+      "role": "M2",
+      "assignee": "hamzi802",
+      "dependencies": [
+        "I30",
+        "I33",
+        "I34"
+      ],
+      "paths": "docs/reports/membership-chat.md",
+      "checks": [
+        "Explain peer records, bootstrap independence, joins, heartbeats, suspected failures and chat fan-out.",
+        "Show command/event-loop wiring and distinguish per-sender order from global order.",
+        "Link demonstrations and give another teammate a walkthrough of the module."
+      ],
+      "due": "2026-11-29",
+      "optional": false,
+      "number": 41
+    },
+    {
+      "plan_id": "I41",
+      "milestone": "MS5",
+      "title": "Storage and placement report section",
+      "role": "M3",
+      "assignee": "Byte-sized-Ali",
+      "dependencies": [
+        "I35"
+      ],
+      "paths": "docs/reports/storage.md",
+      "checks": [
+        "Explain chunking, hashes, manifests, confirmed holders and deterministic placement.",
+        "Show replica/no-complete-copy proofs and safe join-time handoff.",
+        "Document originals/download exceptions, degraded operation and publisher-departure evidence."
+      ],
+      "due": "2026-11-29",
+      "optional": false,
+      "number": 42
+    },
+    {
+      "plan_id": "I42",
+      "milestone": "MS5",
+      "title": "Transfer report, final assembly and demo guide",
+      "role": "M4",
+      "assignee": "hamzayousuf717-ops",
+      "dependencies": [
+        "I36",
+        "I38",
+        "I39",
+        "I40",
+        "I41"
+      ],
+      "paths": "docs/reports/transfer.md; docs/demo.md",
+      "checks": [
+        "Explain transfer request identity, reassembly, parallelism, failover and integrity checks.",
+        "Assemble all four report sections, diagrams, build instructions and actual test evidence.",
+        "Provide a timed demo sequence and troubleshooting steps understandable by every member."
+      ],
+      "due": "2026-11-29",
+      "optional": false,
+      "number": 43
+    },
+    {
+      "plan_id": "I43",
+      "milestone": "MS5",
+      "title": "Final integration review and release tag",
+      "role": "M1",
+      "assignee": "Musab-Farooq",
+      "dependencies": [
+        "I32",
+        "I34",
+        "I35",
+        "I36",
+        "I38",
+        "I42"
+      ],
+      "paths": "repository release; docs/",
+      "checks": [
+        "Review all mandatory acceptance criteria and unresolved defects with M2.",
+        "Require independent human approval on final changes and passing CI.",
+        "Tag an agreed passing commit; record exact SHA and limitations without claiming optional work is required."
+      ],
+      "due": "2026-11-29",
+      "optional": false,
+      "number": 44
+    },
+    {
+      "plan_id": "I44",
+      "milestone": "MS5",
+      "title": "Optional: restore lost chunk replicas",
+      "role": "M3",
+      "assignee": "Byte-sized-Ali",
+      "dependencies": [
+        "I28",
+        "I35"
+      ],
+      "paths": "libs/filestore/; libs/filetransfer/",
+      "checks": [
+        "After mandatory failover is complete, detect under-replicated chunks and choose replacement holders.",
+        "Copy from surviving verified replicas through M4's service, confirm storage, then publish new holders.",
+        "Preserve no-complete-managed-copy constraint where feasible; document insufficient-peer/all-copies-lost cases."
+      ],
+      "due": "2026-11-29",
+      "optional": true,
+      "number": 45
+    }
+  ]
+}
