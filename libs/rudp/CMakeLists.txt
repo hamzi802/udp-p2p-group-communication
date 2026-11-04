@@ -1,0 +1,7 @@
+add_library(cn_rudp STATIC src/module.cpp)
+add_library(cn::rudp ALIAS cn_rudp)
+target_include_directories(cn_rudp PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(cn_rudp PUBLIC cn::common)
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()

@@ -1,0 +1,7 @@
+add_library(cn_filetransfer STATIC src/module.cpp)
+add_library(cn::filetransfer ALIAS cn_filetransfer)
+target_include_directories(cn_filetransfer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(cn_filetransfer PUBLIC cn::common cn::hashing)
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()

@@ -1,0 +1,7 @@
+add_subdirectory(common)
+add_subdirectory(rudp)
+add_subdirectory(membership)
+add_subdirectory(chat)
+add_subdirectory(hashing)
+add_subdirectory(filestore)
+add_subdirectory(filetransfer)

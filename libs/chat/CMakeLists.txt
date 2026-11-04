@@ -1,0 +1,7 @@
+add_library(cn_chat STATIC src/module.cpp)
+add_library(cn::chat ALIAS cn_chat)
+target_include_directories(cn_chat PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(cn_chat PUBLIC cn::common)
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()

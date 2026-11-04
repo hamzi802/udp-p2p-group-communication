@@ -1,0 +1,27 @@
+name: Sync project milestones
+on:
+  push:
+    branches: [main, setup/proposal-ready]
+    paths:
+      - '.github/project-plan.json'
+      - '.github/workflows/sync-project-plan.yml'
+      - 'scripts/sync_project_plan.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+  issues: write
+concurrency:
+  group: cn-project-plan
+  cancel-in-progress: false
+jobs:
+  sync:
+    if: github.repository == 'hamzi802/udp-p2p-group-communication' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/setup/proposal-ready')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate plan
+        run: python3 scripts/sync_project_plan.py --validate
+      - name: Sync milestones and issue metadata
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/sync_project_plan.py --apply

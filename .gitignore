@@ -53,3 +53,14 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+# CMake and runtime data
+/build/
+/cmake-build-*/
+CMakeUserPresets.json
+/run/
+/data/
+/downloads/
+/chunk_store/
+__pycache__/
+*.pyc
