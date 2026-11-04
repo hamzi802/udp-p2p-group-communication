@@ -1,7 +1,7 @@
 name: Sync project milestones
 on:
   push:
-    branches: [main, setup/proposal-foundation]
+    branches: [main, setup/proposal-ready]
     paths:
       - '.github/project-plan.json'
       - '.github/workflows/sync-project-plan.yml'
@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   sync:
-    if: github.repository == 'hamzi802/udp-p2p-group-communication' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/setup/proposal-foundation')
+    if: github.repository == 'hamzi802/udp-p2p-group-communication' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/setup/proposal-ready')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
