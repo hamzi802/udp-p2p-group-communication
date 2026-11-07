@@ -36,7 +36,7 @@ For this Linux C++17 project, use the operating system's **POSIX UDP socket API*
 | `<netinet/in.h>` | `sockaddr_in` and port conversion with `htons`/`ntohs` | M1's IPv4 address and port |
 | `<arpa/inet.h>` | `inet_pton`/`inet_ntop` for text IP addresses | M1 when converting IP text |
 | `<unistd.h>` | `close` to release a socket | M1 after using a socket |
-| `<poll.h>` | `poll` to wait for incoming data without freezing the app | Later, when the event loop is connected |
+| `<poll.h>` | `poll` with a timeout to check when a socket has data | Later, when the event loop is connected |
 
 These are system headers, not GitHub libraries. On Linux with a working C++ compiler, CMake does not need an extra networking `find_package` or library link for this socket API. Start M1's standalone demo on one computer with `127.0.0.1` and two different ports such as `5001` and `5002`; move to LAN IP addresses during integration.
 
