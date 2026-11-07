@@ -26,6 +26,22 @@ ctest --test-dir build --output-on-failure
 
 If your installed CTest supports it, add `--no-tests=error` so an empty test suite fails. CI enables this. The initial C++ checks validate only the executable scaffold. Each member must add tests for their own feature.
 
+## Networking: what to use
+
+For this Linux C++17 project, use the operating system's **POSIX UDP socket API**. There is no extra networking package to install. M1 wraps the socket calls in `libs/rudp/`; the other modules use that wrapper when the team integrates them. UDP can lose, duplicate or reorder messages, so M1's reliability code handles ACKs, retries and ordering. See the Linux [UDP](https://man7.org/linux/man-pages/man7/udp.7.html) and [socket](https://man7.org/linux/man-pages/man2/socket.2.html) manual pages.
+
+| Header | What it is for | When to use it |
+|---|---|---|
+| `<sys/socket.h>` | `socket(AF_INET, SOCK_DGRAM, 0)`, `bind`, `sendto`, `recvfrom` | M1's UDP sender/receiver |
+| `<netinet/in.h>` | `sockaddr_in` and port conversion with `htons`/`ntohs` | M1's IPv4 address and port |
+| `<arpa/inet.h>` | `inet_pton`/`inet_ntop` for text IP addresses | M1 when converting IP text |
+| `<unistd.h>` | `close` to release a socket | M1 after using a socket |
+| `<poll.h>` | `poll` with a timeout to check when a socket has data | Later, when the event loop is connected |
+
+These are system headers, not GitHub libraries. On Linux with a working C++ compiler, CMake does not need an extra networking `find_package` or library link for this socket API. Start M1's standalone demo on one computer with `127.0.0.1` and two different ports such as `5001` and `5002`; move to LAN IP addresses during integration.
+
+**M2 (Hamza):** Keep working on [peer list and chat #48](https://github.com/hamzi802/udp-p2p-group-communication/issues/48) with `std::vector` and a fake message sender. Your `ip_addr` and `port_no` are data for now; your code does not open a socket yet. At [integration #52](https://github.com/hamzi802/udp-p2p-group-communication/issues/52), connect your chat send/receive functions to M1's transport. M3 uses local C++ file I/O for chunks; M4 tests downloads with fake sources before connecting to the same transport.
+
 ## Where to work
 
 | Path | Purpose |
