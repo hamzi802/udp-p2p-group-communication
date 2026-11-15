@@ -5,4 +5,7 @@ if(BUILD_TESTING)
     add_test(NAME download_demo_failover COMMAND download_demo --demo)
     set_tests_properties(download_demo_failover PROPERTIES
         PASS_REGULAR_EXPRESSION "SUCCESS: file rebuilt correctly")
+    add_test(NAME download_demo_all_copies_lost COMMAND download_demo --demo-fail)
+    set_tests_properties(download_demo_all_copies_lost PROPERTIES
+        PASS_REGULAR_EXPRESSION "EXPECTED FAILURE: chunk 0 has no reachable copy")
 endif()

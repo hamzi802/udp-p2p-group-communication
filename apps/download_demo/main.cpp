@@ -37,7 +37,8 @@ std::uint32_t checksum(const std::string& data) {
 void printUsage() {
     std::cout << "download_demo: two-source download demo (fake sources, no UDP)\n"
               << "Usage: download_demo [--help | --version | --demo]\n"
-              << "  --demo   fetch chunks from sources A and B; B dies halfway\n";
+              << "  --demo       fetch chunks from sources A and B; B dies halfway\n"
+              << "  --demo-fail  every holder of a chunk disappears: explicit failure\n";
 }
 
 int runDemo() {
@@ -66,8 +67,24 @@ int runDemo() {
 
     std::cout << "Downloading " << kChunkCount << " chunks from A and B\n";
 
-    // 3. Fetch loop: ask for work, "receive" it, mark it done.
+    // 3. Issue requests (bounded by the scheduler), then complete them.
+    struct Request {
+        std::uint64_t id;
+        Assignment job;
+    };
+    std::uint64_t nextRequestId = 1;
+    std::vector<Request> inFlight;
+
     while (!scheduler.finished() && !scheduler.failed()) {
+        // Issue as many requests as the scheduler allows.
+        while (auto job = scheduler.next()) {
+            Request r{nextRequestId++, *job};
+            inFlight.push_back(r);
+            std::cout << "  [req " << r.id << "] ask " << r.job.source
+                      << " for chunk " << r.job.chunk << "\n";
+        }
+        if (inFlight.empty()) break;  // nothing running and nothing to issue
+
         // Source B crashes after 3 chunks have been received.
         if (completed == 3 && sources["B"].alive) {
             sources["B"].alive = false;
@@ -75,19 +92,22 @@ int runDemo() {
             std::cout << "  !! source B went down, switching unfinished work to A\n";
         }
 
-        auto job = scheduler.next();
-        if (!job) break;
-
-        FakeSource& src = sources[job->source];
-        if (!src.alive || !src.chunks.count(job->chunk)) {
-            scheduler.retryElsewhere(job->chunk);
+        // Complete the oldest in-flight request.
+        Request r = inFlight.front();
+        inFlight.erase(inFlight.begin());
+        FakeSource& src = sources[r.job.source];
+        if (!src.alive || !src.chunks.count(r.job.chunk)) {
+            std::cout << "  [req " << r.id << "] FAILED: source " << r.job.source
+                      << " unavailable, chunk " << r.job.chunk << " retried elsewhere\n";
+            scheduler.retryElsewhere(r.job.chunk);
             continue;
         }
-        received[job->chunk] = src.chunks[job->chunk];
-        usedSources.insert(job->source);
-        scheduler.markDone(job->chunk);
+        received[r.job.chunk] = src.chunks[r.job.chunk];
+        usedSources.insert(r.job.source);
+        scheduler.markDone(r.job.chunk);
         ++completed;
-        std::cout << "  chunk " << job->chunk << " <- source " << job->source << "\n";
+        std::cout << "  [req " << r.id << "] chunk " << r.job.chunk
+                  << " <- source " << r.job.source << " OK\n";
     }
 
     if (scheduler.failed() || !scheduler.finished()) {
@@ -112,6 +132,26 @@ int runDemo() {
     return 1;
 }
 
+int runFailureDemo() {
+    // Chunk 0 is held only by A and B; both vanish before any reply.
+    ChunkScheduler scheduler({{"A", "B"}});
+    auto job = scheduler.next();
+    std::cout << "  [req 1] ask " << job->source << " for chunk 0\n";
+    scheduler.markSourceDown(job->source);
+    std::cout << "  !! source " << job->source << " went down\n";
+    auto again = scheduler.next();
+    std::cout << "  [req 2] ask " << again->source << " for chunk 0\n";
+    scheduler.markSourceDown(again->source);
+    std::cout << "  !! source " << again->source << " went down\n";
+    scheduler.next();
+    if (scheduler.failed()) {
+        std::cout << "EXPECTED FAILURE: chunk 0 has no reachable copy\n";
+        return 0;
+    }
+    std::cout << "UNEXPECTED: scheduler did not report failure\n";
+    return 1;
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -121,6 +161,9 @@ int main(int argc, char* argv[]) {
     }
     if (argc == 2 && std::string_view(argv[1]) == "--demo") {
         return runDemo();
+    }
+    if (argc == 2 && std::string_view(argv[1]) == "--demo-fail") {
+        return runFailureDemo();
     }
     if (argc == 1 || (argc == 2 && std::string_view(argv[1]) == "--help")) {
         printUsage();
