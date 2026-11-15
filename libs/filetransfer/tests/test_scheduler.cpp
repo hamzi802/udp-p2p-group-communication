@@ -52,11 +52,21 @@ static void finishesWhenAllDone() {
     CHECK(s.finished());
 }
 
+static void concurrencyIsBounded() {
+    ChunkScheduler s({{"A", "B"}, {"A", "B"}, {"A", "B"}, {"A", "B"}, {"A", "B"}},
+                     /*maxPerSource=*/1, /*maxTotal=*/2);
+    CHECK(s.next().has_value());
+    CHECK(s.next().has_value());
+    CHECK(!s.next().has_value());  // cap reached, nothing returned
+    CHECK(!s.failed());            // busy is not failure
+}
+
 int main() {
     twoSourcesGetDifferentChunks();
     failoverUsesReplica();
     allHoldersGoneFails();
     finishesWhenAllDone();
+    concurrencyIsBounded();
     if (failures == 0) std::cout << "scheduler tests passed\n";
     return failures == 0 ? 0 : 1;
 }

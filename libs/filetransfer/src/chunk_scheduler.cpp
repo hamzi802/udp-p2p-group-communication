@@ -2,7 +2,9 @@
 
 namespace cn::filetransfer {
 
-ChunkScheduler::ChunkScheduler(std::vector<std::vector<std::string>> holders) {
+ChunkScheduler::ChunkScheduler(std::vector<std::vector<std::string>> holders,
+                               std::size_t maxPerSource, std::size_t maxTotal)
+    : maxPerSource_(maxPerSource), maxTotal_(maxTotal) {
     chunks_.resize(holders.size());
     for (std::size_t i = 0; i < holders.size(); ++i) {
         chunks_[i].holders = std::move(holders[i]);
@@ -17,25 +19,38 @@ std::size_t ChunkScheduler::inFlight(const std::string& source) const {
     return n;
 }
 
+std::size_t ChunkScheduler::totalInFlight() const {
+    std::size_t n = 0;
+    for (const auto& c : chunks_) {
+        if (c.state == State::InFlight) ++n;
+    }
+    return n;
+}
+
 std::optional<Assignment> ChunkScheduler::next() {
+    if (totalInFlight() >= maxTotal_) return std::nullopt;  // bounded concurrency
     for (std::size_t i = 0; i < chunks_.size(); ++i) {
         Chunk& c = chunks_[i];
         if (c.state != State::Pending) continue;
 
         const std::string* best = nullptr;
         std::size_t bestLoad = 0;
+        bool anyUsable = false;  // alive and not yet tried, even if busy
         for (const auto& s : c.holders) {
             if (down_.count(s) || c.tried.count(s)) continue;
+            anyUsable = true;
             std::size_t load = inFlight(s);
+            if (load >= maxPerSource_) continue;  // busy: wait
             if (best == nullptr || load < bestLoad) {
                 best = &s;
                 bestLoad = load;
             }
         }
-        if (best == nullptr) {  // every holder is down or already tried
+        if (!anyUsable) {  // every holder is down or already tried
             c.state = State::Failed;
             continue;
         }
+        if (best == nullptr) continue;  // all usable holders are busy
         c.state = State::InFlight;
         c.source = *best;
         return Assignment{static_cast<ChunkId>(i), *best};

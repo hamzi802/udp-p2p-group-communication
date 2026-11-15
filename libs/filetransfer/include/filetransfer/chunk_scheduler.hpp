@@ -20,7 +20,10 @@ struct Assignment {
 class ChunkScheduler {
 public:
     // holders[i] = names of the peers that hold chunk i
-    explicit ChunkScheduler(std::vector<std::vector<std::string>> holders);
+    // maxPerSource / maxTotal bound how many requests may be in flight.
+    explicit ChunkScheduler(std::vector<std::vector<std::string>> holders,
+                            std::size_t maxPerSource = 2,
+                            std::size_t maxTotal = 4);
 
     // Next pending chunk and the least-busy usable holder, if any.
     std::optional<Assignment> next();
@@ -43,6 +46,10 @@ private:
         std::string source;
     };
     std::size_t inFlight(const std::string& source) const;
+    std::size_t totalInFlight() const;
+
+    std::size_t maxPerSource_;
+    std::size_t maxTotal_;
 
     std::vector<Chunk> chunks_;
     std::set<std::string> down_;
