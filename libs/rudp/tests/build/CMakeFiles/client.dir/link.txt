@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/client.dir/link.d "CMakeFiles/client.dir/home/musab/Desktop/ProjCN/udp-p2p-group-communication/libs/rudp/src/client.cpp.o" "CMakeFiles/client.dir/home/musab/Desktop/ProjCN/udp-p2p-group-communication/libs/rudp/src/protocol.cpp.o" -o client

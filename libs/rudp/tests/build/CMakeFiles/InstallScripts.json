@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/musab/Desktop/ProjCN/udp-p2p-group-communication/libs/rudp/tests/build/cmake_install.cmake"
+	],
+	"Parallel" : false
+}
