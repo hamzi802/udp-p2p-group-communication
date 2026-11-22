@@ -55,7 +55,7 @@ dkms.conf
 *.dwo
 
 # CMake and runtime data
-/build/
+build/
 /cmake-build-*/
 CMakeUserPresets.json
 /run/
