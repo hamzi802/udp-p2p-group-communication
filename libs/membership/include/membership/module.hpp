@@ -1,4 +1,4 @@
-#pragma once
+#pragma once // ELI5: include this header at most once.
 
-// Scaffold only. The owner defines the public API through the assigned issues.
-namespace cn::membership {}
+// ELI5: this module is currently an empty scaffold for peer membership.
+namespace cn::membership {} // ELI5: reserve a namespace for its future public types.

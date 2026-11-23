@@ -1,6 +1,6 @@
 # Protocol specification v1 (M1 / I03)
 
-**Status: PROPOSED v1.0. Not frozen until M2, M3 and M4 have signed off (section 13).**
+**Status: PROPOSED v1.0. M3 payload layouts are defined in section 6.1; the protocol is not frozen until M2 and M4 have signed off (section 13).**
 Owner: M1 (header, sessions, reliable delivery, `ACK`). Payload layouts of every other message are owned by the member named in section 6.
 
 The key words MUST, MUST NOT, SHOULD and MAY are used in the usual RFC 2119 sense. Anything a receiver finds invalid is **dropped silently** (never answered) and counted in a per-reason statistics counter.
@@ -113,6 +113,23 @@ Ranges: `0x00-0x0F` M1, `0x10-0x2F` M2, `0x30-0x4F` M3, `0x50-0x6F` M4, `0x70-0x
 | `0x52` | CHUNK_ERROR | M4 | yes | 1 | |
 
 A packet whose `RELIABLE` flag or `stream` disagrees with its row is dropped.
+
+### 6.1 M3 payload layouts
+
+All integer fields below are unsigned and big-endian. These are application payloads after the 48-byte envelope; each payload MUST be at most 1152 bytes. Display names are metadata bytes, MUST contain no NUL, MUST be 1-512 bytes, and MUST NOT be used to construct a filesystem path. The receiver rejects truncation, trailing bytes, inconsistent indexes and values outside the M3 bounds.
+
+| Type | Payload fields, in order | Stream |
+|---|---|---|
+| `CATALOG_REQUEST` (`0x30`) | Empty payload; requests the sender's current catalog, manifests and its own verified HAVE snapshots. | 0 |
+| `FILE_ANNOUNCE` (`0x31`) | `file_id[32]`, `file_size:u64`, `chunk_size:u32`, `chunk_count:u32`, `final_chunk_size:u32`, `name_length:u16`, `display_name[name_length]`. | 0 |
+| `MANIFEST_PAGE` (`0x32`) | `file_id[32]`, `page_index:u32`, `page_count:u32`, `first_chunk_index:u32`, `hash_count:u16`, `chunk_hash[hash_count][32]`. | 1 |
+| `HAVE_PAGE` (`0x33`) | `file_id[32]`, `generation:u64`, `page_index:u32`, `page_count:u32`, `first_chunk_index:u32`, `bit_count:u16`, `bitmap[ceil(bit_count/8)]`. | 1 |
+
+`FILE_ANNOUNCE` has 54 fixed bytes plus the display name. Version 1 uses fixed 16 KiB chunks and rejects a manifest with more than 1,000,000 chunks. `file_id` is SHA-256 of the complete file; manifest hashes are SHA-256 for each chunk. A manifest page has a 46-byte fixed part and at most 34 hashes (1,134 bytes total). Its page count is `ceil(chunk_count / 34)`, indexes start at zero, and `first_chunk_index = page_index * 34`. Empty files have no manifest pages.
+
+A HAVE bitmap describes the sender identified by the transport envelope. Bits are least-significant-bit first within each byte. A HAVE page carries at most 8,192 chunks (1,024 bitmap bytes; 1,078 payload bytes total). Its page count is `ceil(chunk_count / 8192)` and `first_chunk_index = page_index * 8192`. Padding bits after the final chunk MUST be zero. Empty files have no HAVE pages.
+
+`generation` starts at 1 and increases whenever a peer's complete bitmap for a file changes within that peer session; it MUST NOT wrap. Receivers replace a peer's previous holder snapshot only after every page for the same file, peer session and generation has arrived and validated. Duplicate identical pages are safe; conflicting pages for one generation are rejected. Since `FILE_ANNOUNCE` uses stream 0 and manifest/HAVE pages use stream 1, implementations MUST accept pages that arrive before the announcement and bound incomplete assemblies. Repeating `CATALOG_REQUEST` asks a peer to resend a complete current snapshot after a queue failure or incomplete exchange.
 
 ## 7. Receive validation order
 
@@ -240,7 +257,8 @@ seq 0, ack 9, sack 0x3 (seq 10 and 11 received), window 17, crc 0xc95e3262.
 | Decision | Settled in |
 |---|---|
 | Magic, numeric types, flags, CRC variant and test vector | sections 2, 3, 3.1, 4, 6, 12 |
-| Exact payload layouts, length and page limits, metadata consistency | **open: M2, M3, M4** (each owner writes their sections; header-level limit is 1152 bytes) |
+| M3 payload layouts, length and page limits, metadata consistency | section 6.1; pending M2/M4 review |
+| M2/M4 payload layouts, length and page limits, metadata consistency | **open: M2 and M4** (header-level limit is 1152 bytes) |
 | Nonces and session handshake, WELCOME echo, receiver-session zero discovery | section 8 |
 | Per-session / stream sequence initialisation, wraparound, restart handling | sections 8, 9.1 |
 | Retry and backoff limits, ACK/SACK validation, queue bounds, receive-window semantics, fairness | sections 2, 5, 7, 9 |
@@ -248,7 +266,7 @@ seq 0, ack 9, sack 0x3 (seq 10 and 11 received), window 17, crc 0xc95e3262.
 
 **Sign-off needed from:**
 - **M2:** JOIN/WELCOME/HELLO payload layouts (cookie prefix rule), HEARTBEAT as unicast per link, heartbeat counter, JOIN retry schedule, who re-handshakes after `link_failed`.
-- **M3:** streams for `MANIFEST_PAGE` and `HAVE_PAGE` (proposed stream 1), page sizes.
+- **M3:** section 6.1 defines stream 1 for `MANIFEST_PAGE` and `HAVE_PAGE`, page sizes, and snapshot generation behavior; M1/M2/M4 review is still needed before freeze.
 - **M4:** use of `cancel_queued`, behaviour after `link_failed` mid-transfer.
 
 ## Appendix: reference generator (Python 3)

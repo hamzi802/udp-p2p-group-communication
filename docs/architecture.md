@@ -29,9 +29,9 @@ flowchart TD
 
 Only ReliableTransport reads the UDP socket. PeerApp services nonblocking input, transport and timers, then dispatches validated messages. Control/chat and file streams must both progress.
 
-## Proposed class and interface ownership
+## Class and interface ownership
 
-These are design contracts to implement under I02, not classes already completed in the skeleton.
+M3 now implements `FileStore`, local chunk storage, manifest codecs and placement behind the common interfaces. M1, M2 and M4 still need to implement their concrete services and wire the callbacks into `PeerApp`.
 
 | Service | Implements | Depends on | Owner |
 |---|---|---|---|
@@ -55,7 +55,7 @@ classDiagram
     PeerApp *-- FileTransfer
 ```
 
-Interfaces have virtual destructors. Agree asynchronous callbacks, ownership/lifetime, cancellation, failure and queue-full semantics before implementing. Libraries depend on interface declarations in common rather than constructing other concrete services.
+The shared declarations are in `libs/common/include/common/`. `ITransport` reports queue and link failures, `IPeerDirectory` returns active peer sessions, `IChunkStore` validates every read/write against the manifest, and `IChunkFetcher` completes asynchronously on the event-loop thread. M1, M2 and M4 should review these contracts before their concrete implementations depend on them.
 
 ## Packet stories
 
@@ -73,10 +73,10 @@ A 2 MiB file contains 128 chunks at 16 KiB. Each managed chunk has two distinct 
 
 Sort active peer IDs. For chunk c choose positions (offset+c) mod N and (offset+c+1) mod N. For N >= 3 and at least three chunks this avoids a complete managed copy; validate it for all supported inputs. Desired placement is not evidence of actual holders. Keep old verified replicas until replacement storage is confirmed.
 
-A source crash can leave one replica: required download failover uses that survivor. Rebuilding two replicas is optional I44. Two live peers cannot simultaneously satisfy two replicas per chunk and no complete managed copy.
+A source crash can leave one replica: M4's required download failover uses that survivor. M3 replans and can restore placement when a confirmed copy survives (optional I44). Two live peers cannot simultaneously satisfy two replicas per chunk and no complete managed copy.
 
 ## Scope
 
 Required: four peers, two files >= 2 MiB per member, eight files total, dynamic fifth-peer join, bootstrap independence, reliable ordered chat, replicated metadata, parallel downloads, failover and integrity verification.
 
-Initial platform: Linux, C++17, POSIX UDP, CMake, CLI, single nonblocking event loop. GUI, multicast discovery, private chat, encryption and replica repair are later work. CRC/SHA-256 detect corruption, not peer authentication. This is a controlled LAN prototype; general Internet deployment requires additional design.
+Initial platform: Linux, C++17, POSIX UDP, CMake, CLI, single nonblocking event loop. GUI, multicast discovery, private chat and encryption are later work. CRC/SHA-256 detect corruption, not peer authentication. This is a controlled LAN prototype; general Internet deployment requires additional design.

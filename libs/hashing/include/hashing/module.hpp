@@ -1,4 +1,3 @@
-#pragma once
+#pragma once // ELI5: include this header at most once.
 
-// Scaffold only. The owner defines the public API through the assigned issues.
-namespace cn::hashing {}
+#include "hashing/sha256.hpp" // ELI5: expose the module's SHA-256 public interface.

@@ -2,11 +2,8 @@
 
 Owner: M1 (@Musab-Farooq).
 
-This is a buildable scaffold, not a completed implementation. Public headers go in `include/common/`, implementation in `src/`, and behavioral tests in `tests/`.
+`common/` is a header-only target for stable types and service contracts shared by module owners. M3 added `file_types.hpp` and `storage_interfaces.hpp` so the storage service can compile independently of concrete membership, transport and transfer implementations.
 
-Tasks:
-- I02: Shared C++ interfaces and common types
-- I04: Manifest and replica metadata specification
-- I31: Restart, stale-packet and queue-failure handling
+The interfaces are: `ITransport` for reliable application messages, `IPeerDirectory` for active peer sessions, `IChunkStore` for verified local chunks, and `IChunkFetcher` for asynchronous M4 transfers. Review changes with M1, M2 and M4 before wiring them into the peer application. Libraries should depend on these declarations rather than concrete peer modules.
 
 Use interfaces from common to avoid circular library dependencies. See [architecture](../../docs/architecture.md) and [team workflow](../../CONTRIBUTING.md).

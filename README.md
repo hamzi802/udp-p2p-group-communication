@@ -2,7 +2,7 @@
 
 Decentralized group chat and distributed file sharing in **C++17 on Linux**, using UDP with reliability implemented by the team. Every peer runs the same application; no central application server or storage is required.
 
-**Current status:** buildable project skeleton only. Networking, membership, chat, storage and transfers are assigned work, not implemented features. The demo programs currently show help/version information.
+**Current status:** M3's hashing and storage modules now have an implementation and a local `chunk_tool` workflow. M1 transport, M2 membership/chat/peer application and M4 transfer service remain scaffolds, so the end-to-end peer application is not integrated yet. The M3 transport and transfer contracts are declared in `libs/common/` for the owners to review.
 
 ## Team
 
@@ -15,7 +15,7 @@ Decentralized group chat and distributed file sharing in **C++17 on Linux**, usi
 
 ## Build and run
 
-Requires Linux, a C++17 compiler, CMake 3.16+ and a build tool such as Make or Ninja. GitHub CI uses the CMake/CTest supplied by its runner.
+Requires Linux, a C++17 compiler, CMake 3.16+, OpenSSL Crypto development files and a build tool such as Make or Ninja. GitHub CI uses the CMake/CTest supplied by its runner.
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
@@ -24,7 +24,19 @@ ctest --test-dir build --output-on-failure
 ./build/apps/peer/peer --help
 ```
 
-If your installed CTest supports it, add `--no-tests=error` so an empty test suite fails. CI enables this. The initial C++ checks validate only the executable scaffold. Each member must add tests for their own feature.
+If your installed CTest supports it, add `--no-tests=error` so an empty test suite fails. CI enables this. Hashing and filestore have registered behavioral tests; the full peer demo and network acceptance still depend on M1, M2 and M4 implementations.
+
+## M3 local chunk workflow
+
+`chunk_tool` works without the other peers. It stores chunks below the selected data directory and leaves the source file untouched.
+
+```bash
+./build/apps/chunk_tool/chunk_tool share sample.bin --data-dir run/m3 --peers A,B,C,D
+./build/apps/chunk_tool/chunk_tool catalog --data-dir run/m3
+./build/apps/chunk_tool/chunk_tool rebuild <file-id> --data-dir run/m3 --output downloads/sample.bin
+```
+
+`share` prints the full file ID, chunk hashes and intended two-holder placement. Its peer labels are a local demonstration only: no remote storage is confirmed by this command. The full storage-service API and the defined M3 message payloads are documented in [storage format](docs/storage-format.md), [protocol](docs/protocol.md) and [storage report](docs/reports/storage.md).
 
 ## Networking: what to use
 
@@ -50,7 +62,7 @@ These are system headers, not GitHub libraries. On Linux with a working C++ comp
 | apps/rudp_demo/ | Independent transport demonstration (M1) |
 | apps/chunk_tool/ | Local chunk/hash demonstration (M3) |
 | apps/download_demo/ | Fake-based scheduler then real download demonstration (M4) |
-| libs/common/ | Header-only shared types and interfaces (M1 + agreement) |
+| libs/common/ | Header-only shared types and interfaces (M1 + agreement; includes M3 contracts) |
 | libs/rudp/ | Socket, codec and reliable transport (M1) |
 | libs/membership/, libs/chat/ | Group membership and chat (M2) |
 | libs/hashing/, libs/filestore/ | Integrity, storage, manifests and placement (M3) |
@@ -69,7 +81,7 @@ Every compiled library has public `include/<module>/`, `src/`, `tests/` and a CM
 
 See [protocol draft](docs/protocol.md), [storage draft](docs/storage-format.md), [test/demo plan](docs/testing.md) and [setup status](docs/setup-status.md).
 
-The three active milestone dates are proposed internal targets, not confirmed instructor deadlines. The earlier 44 detailed planning issues are closed and kept only as technical reference.
+The three active milestone dates are proposed internal targets, not confirmed instructor deadlines. The earlier 44 detailed planning issues are closed and kept only as technical reference. The current M3 scope is active issue #51 plus its later storage contributions to integration and final demonstration; the archived Ixx rows are design breakdowns, not separate active tickets.
 
 ## Working on a GitHub issue
 

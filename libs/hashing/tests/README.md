@@ -1,3 +1,3 @@
 # hashing tests
 
-Add tests for the acceptance criteria in this module's issues. Register each executable with CTest in CMakeLists.txt. Failure scenarios matter as much as successful cases.
+`hashing_behavior` is registered with CTest. It checks empty and `abc` SHA-256 vectors, incremental hashing, binary file hashing and size reporting, uppercase/lowercase hex handling, and invalid hex input.

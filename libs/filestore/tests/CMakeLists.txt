@@ -1,2 +1,3 @@
-# Register behavioral tests here with add_executable() and add_test().
-# Owner: M3. Do not replace real feature checks with placeholder passing tests.
+add_executable(cn_filestore_tests test_filestore.cpp)
+target_link_libraries(cn_filestore_tests PRIVATE cn::filestore)
+add_test(NAME filestore_behavior COMMAND cn_filestore_tests)
