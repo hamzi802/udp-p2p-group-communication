@@ -7,6 +7,8 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 
+using namespace std;
+
 Client::Client(const string& ip, int port)
     : socket_fd(-1),
       server_ip(ip),
@@ -51,7 +53,7 @@ bool Client::start()
 
     cout << "Client started\n";
     cout << "Connected to server address "
-              << server_ip << ':' << server_port << '\n';
+         << server_ip << ':' << server_port << '\n';
 
     return true;
 }
@@ -76,11 +78,19 @@ void Client::run()
         if (message.empty())
             continue;
 
+        // NEW: one packet carries at most MAX_PAYLOAD bytes of text.
+        if (message.size() > Protocol::MAX_PAYLOAD) {
+            cerr << "Message too long (maximum "
+                 << Protocol::MAX_PAYLOAD << " bytes)\n";
+            continue;
+        }
+
         Protocol::Packet outgoing;
 
-        outgoing.header.type = Protocol::PacketType::DATA;
-        outgoing.header.sequence_number = client_sequence;
-        outgoing.payload = message;
+        // CHANGED: the type is set inside sendReliable() now; the field is called seq;
+        // the payload is raw bytes, so convert the text.
+        outgoing.header.seq = client_sequence;
+        outgoing.payload = Protocol::stringToPayload(message);
 
         const bool sent = Protocol::sendReliable(
             socket_fd,
@@ -110,7 +120,7 @@ void Client::run()
 
         if (received) {
             cout << "Server: "
-                      << response.payload << '\n';
+                 << Protocol::payloadToString(response.payload) << '\n';
         }
     }
 }

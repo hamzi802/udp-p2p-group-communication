@@ -1,483 +1,324 @@
 #include "protocol.h"
 
-#include <algorithm>
-#include <cstring>
+#include <cerrno>
+#include <chrono>
 #include <iostream>
+#include <random>
 #include <utility>
 
-#include <unistd.h>
-#include <sys/socket.h>
-#include <sys/select.h>
 #include <arpa/inet.h>
+#include <poll.h>
+#include <sys/socket.h>
 
 namespace Protocol {
 
-static void writeUInt16(uint8_t* buffer, uint16_t value)
+using std::cerr;
+using std::cout;
+
+// ---- identity ---------------------------------------------------------------------------
+
+static uint32_t randomNonZero32()
 {
-    buffer[0] = static_cast<uint8_t>((value >> 8) & 0xFF);
-    buffer[1] = static_cast<uint8_t>(value & 0xFF);
+    std::random_device rd;
+    uint32_t v = 0;
+    while (v == 0) v = rd();
+    return v;
 }
 
-static void writeUInt32(uint8_t* buffer, uint32_t value)
+static uint64_t randomNonZero64()
 {
-    buffer[0] = static_cast<uint8_t>((value >> 24) & 0xFF);
-    buffer[1] = static_cast<uint8_t>((value >> 16) & 0xFF);
-    buffer[2] = static_cast<uint8_t>((value >> 8) & 0xFF);
-    buffer[3] = static_cast<uint8_t>(value & 0xFF);
+    std::random_device rd;
+    uint64_t v = 0;
+    while (v == 0) v = (static_cast<uint64_t>(rd()) << 32) | rd();
+    return v;
 }
 
-static uint16_t readUInt16(const uint8_t* buffer)
+PeerState::PeerState()
+    : local_id(randomNonZero32()),
+      local_session(randomNonZero64())
 {
-    return (static_cast<uint16_t>(buffer[0]) << 8) |
-           static_cast<uint16_t>(buffer[1]);
 }
 
-static uint32_t readUInt32(const uint8_t* buffer)
+// ---- small helpers ------------------------------------------------------------------------
+
+static bool sameAddress(const sockaddr_in& a, const sockaddr_in& b)
 {
-    return (static_cast<uint32_t>(buffer[0]) << 24) |
-           (static_cast<uint32_t>(buffer[1]) << 16) |
-           (static_cast<uint32_t>(buffer[2]) << 8) |
-           static_cast<uint32_t>(buffer[3]);
+    return a.sin_family == b.sin_family &&
+           a.sin_port == b.sin_port &&
+           a.sin_addr.s_addr == b.sin_addr.s_addr;
 }
 
-static size_t buildPacket(
-    const Packet& packet,
-    uint8_t* output)
+// "a comes before b" for 32-bit sequence numbers, safe across wraparound (Stage 6 detail).
+static bool seqBefore(uint32_t a, uint32_t b)
 {
-    const size_t payload_length = packet.payload.size();
-
-    // Magic number: bytes 0-1
-    writeUInt16(output, MAGIC_NUMBER);
-
-    // Version: byte 2
-    output[2] = PROTOCOL_VERSION;
-
-    // Packet type: byte 3
-    output[3] = static_cast<uint8_t>(packet.header.type);
-
-    // Sequence number: bytes 4-7
-    writeUInt32(output + 4, packet.header.sequence_number);
-
-    // Payload length: bytes 8-9
-    writeUInt16(output + 8, static_cast<uint16_t>(payload_length));
-
-    // Payload starts at byte 10
-    if (payload_length > 0) {
-        copy(
-            packet.payload.begin(),
-            packet.payload.end(),
-            output + HEADER_SIZE
-        );
-    }
-
-    return HEADER_SIZE + payload_length;
+    return static_cast<int32_t>(a - b) < 0;
 }
 
-static ParseResult parsePacket(
-    const uint8_t* buffer,
-    size_t buffer_length,
-    Packet& packet)
+// TEMPORARY mini-validator: just the rules this prototype needs. Stage 3 replaces it with
+// the full list from protocol.md section 7.
+static bool prototypeChecksPass(const Packet& packet)
 {
-    if (buffer_length < HEADER_SIZE)
-        return PARSE_TOO_SHORT;
+    const PacketHeader& h = packet.header;
 
-    const uint16_t magic = readUInt16(buffer);
+    if (h.magic != MAGIC || h.version != VERSION || h.reserved != 0) return false;
+    if (h.stream != 0) return false;
+    if (h.sender_id == 0 || h.sender_session == 0) return false;
 
-    if (magic != MAGIC_NUMBER)
-        return PARSE_BAD_MAGIC;
+    if (h.type == PacketType::CHAT)                       // our DATA message
+        return h.flags == Flag::RELIABLE && h.seq != 0 &&
+               h.ack == 0 && h.sack == 0 && h.window == 0;
 
-    const uint8_t version = buffer[2];
+    if (h.type == PacketType::ACK)
+        return h.flags == Flag::ACK_VALID && h.seq == 0 && h.window <= 32 &&
+               (h.sack & 0x80000000u) == 0 && packet.payload.empty();
 
-    if (version != PROTOCOL_VERSION)
-        return PARSE_BAD_VERSION;
-
-    const uint8_t type = buffer[3];
-
-    if (type != static_cast<uint8_t>(PacketType::DATA) &&
-        type != static_cast<uint8_t>(PacketType::ACK)) {
-        return PARSE_BAD_TYPE;
-    }
-
-    const uint32_t sequence_number = readUInt32(buffer + 4);
-    const uint16_t payload_length = readUInt16(buffer + 8);
-
-    if (payload_length > MAX_PAYLOAD_SIZE || buffer_length != HEADER_SIZE + payload_length) {
-        return PARSE_BAD_LENGTH;
-    }
-
-    if (type == static_cast<uint8_t>(PacketType::ACK) && payload_length != 0) {
-        return PARSE_BAD_LENGTH;
-    }
-
-    packet.header.magic = magic;
-    packet.header.version = version;
-    packet.header.type = static_cast<PacketType>(type);
-    packet.header.sequence_number = sequence_number;
-    packet.header.payload_length = payload_length;
-
-    packet.payload.assign(
-        reinterpret_cast<const char*>(buffer + HEADER_SIZE),
-        payload_length
-    );
-
-    return PARSE_OK;
+    return false;                                          // any other type: ignore
 }
 
-bool encodePacket(
-    const Packet& packet,
-    uint8_t* output,
-    size_t output_capacity,
-    size_t& output_length)
+// Is this packet part of OUR conversation? Learns the peer's session on first contact,
+// then rejects packets from any other session (stale packets from an old run).
+static bool belongsToConversation(const Packet& packet, PeerState& state)
 {
-    output_length = 0;
+    const PacketHeader& h = packet.header;
 
-    if (output == nullptr)
+    // receiver_session is 0 only until the peer has heard from us; otherwise it must be ours.
+    if (h.receiver_session != 0 && h.receiver_session != state.local_session)
         return false;
 
-    if (packet.payload.size() > MAX_PAYLOAD_SIZE){
-        cout<<"payload size increased"<<endl;
+    if (state.remote_session == 0) {
+        state.remote_session = h.sender_session;
+        return true;
+    }
+    return h.sender_session == state.remote_session;
+}
+
+// ---- sending --------------------------------------------------------------------------------
+
+// Fills in the identity fields, encodes (CRC included) and sends. `packet` is a copy, so
+// the caller's packet is not modified.
+static bool sendPacket(int socket_fd,
+                       const sockaddr_in& destination,
+                       Packet packet,
+                       const PeerState& state)
+{
+    packet.header.stream = 0;
+    packet.header.sender_id = state.local_id;
+    packet.header.sender_session = state.local_session;
+    packet.header.receiver_session = state.remote_session;
+
+    uint8_t buffer[MAX_DATAGRAM];
+    size_t length = 0;
+
+    const EncodeResult result = encodePacket(packet, buffer, sizeof(buffer), length);
+    if (result != EncodeResult::Ok) {
+        cerr << "Cannot encode packet: " << encodeResultText(result) << '\n';
         return false;
     }
 
-    if (output_capacity < HEADER_SIZE + packet.payload.size())
-        return false;
-
-    if (packet.header.type != PacketType::DATA && packet.header.type != PacketType::ACK) {
-        return false;
-    }
-
-    if (packet.header.type == PacketType::ACK && !packet.payload.empty()) {
-        return false;
-    }
-
-    output_length = buildPacket(packet, output);
-
-    return true;
+    const ssize_t sent = sendto(socket_fd, buffer, length, 0,
+                                reinterpret_cast<const sockaddr*>(&destination),
+                                sizeof(destination));
+    return sent == static_cast<ssize_t>(length);
 }
 
-ParseResult decodePacket(
-    const uint8_t* buffer,
-    size_t buffer_length,
-    Packet& packet)
-{
-    if (buffer == nullptr)
-        return PARSE_TOO_SHORT;
-
-    return parsePacket(buffer, buffer_length, packet);
-}
-
-const char* parseResultText(ParseResult result)
-{
-    switch (result) {
-        case PARSE_OK:
-            return "Packet parsed successfully";
-
-        case PARSE_TOO_SHORT:
-            return "Packet is too short";
-
-        case PARSE_BAD_MAGIC:
-            return "Invalid magic number";
-
-        case PARSE_BAD_VERSION:
-            return "Unsupported protocol version";
-
-        case PARSE_BAD_LENGTH:
-            return "Invalid payload length";
-
-        case PARSE_BAD_TYPE:
-            return "Unknown packet type";
-    }
-
-    return "Unknown parsing error";
-}
-
-const char* packetTypeName(PacketType type)
-{
-    switch (type) {
-        case PacketType::DATA:
-            return "DATA";
-
-        case PacketType::ACK:
-            return "ACK";
-    }
-
-    return "UNKNOWN";
-}
-
-static bool sameAddress(
-    const sockaddr_in& first,
-    const sockaddr_in& second)
-{
-    return first.sin_family == second.sin_family &&
-           first.sin_port == second.sin_port &&
-           first.sin_addr.s_addr == second.sin_addr.s_addr;
-}
-
-static bool sendPacket(
-    int socket_fd,
-    const sockaddr_in& destination,
-    const Packet& packet)
-{
-    uint8_t buffer[MAX_PACKET_SIZE];
-    size_t packet_length = 0;
-
-    if (!encodePacket(packet, buffer, sizeof(buffer), packet_length))
-        return false;
-
-    const ssize_t sent = sendto(
-        socket_fd,
-        buffer,
-        packet_length,
-        0,
-        reinterpret_cast<const sockaddr*>(&destination),
-        sizeof(destination)
-    );
-
-    return sent == static_cast<ssize_t>(packet_length);
-}
-
-static bool sendACK(
-    int socket_fd,
-    const sockaddr_in& destination,
-    uint32_t sequence_number)
+// ACK = "I have everything below `ack`" (the next sequence number I expect).
+static bool sendAck(int socket_fd, const sockaddr_in& destination, const PeerState& state)
 {
     Packet ack;
-
     ack.header.type = PacketType::ACK;
-    ack.header.sequence_number = sequence_number;
-
-    return sendPacket(socket_fd, destination, ack);
+    ack.header.flags = Flag::ACK_VALID;
+    ack.header.seq = 0;                                   // ACKs are not reliable: no sequence number
+    ack.header.ack = state.expected_receive_sequence;
+    ack.header.sack = 0;                                  // SACK comes in Stage 8
+    ack.header.window = 1;                                // prototype: one packet at a time
+    return sendPacket(socket_fd, destination, ack, state);
 }
 
-// Acknowledge incoming DATA and remember it for the application.
-static void handleIncomingData(
-    int socket_fd,
-    const Packet& packet,
-    const sockaddr_in& sender,
-    PeerState& peer_state)
+// DATA that arrives while we are busy waiting for an ACK: keep it for the application.
+static void handleIncomingData(int socket_fd,
+                               const Packet& packet,
+                               const sockaddr_in& sender,
+                               PeerState& state)
 {
-    const uint32_t sequence = packet.header.sequence_number;
+    const uint32_t seq = packet.header.seq;
 
-    // Old packet: it was already delivered.
-    // ACK it again because the previous ACK may have been lost.
-    if (sequence < peer_state.expected_receive_sequence) {
-        sendACK(socket_fd, sender, sequence);
+    // Old packet: already delivered. ACK again because our earlier ACK may have been lost.
+    if (seqBefore(seq, state.expected_receive_sequence)) {
+        sendAck(socket_fd, sender, state);
         return;
     }
 
-    // Accept only the next expected packet.
-    if (sequence == peer_state.expected_receive_sequence &&
-        !peer_state.has_pending_packet) {
-
-        peer_state.pending_packet = packet;
-        peer_state.pending_sender = sender;
-        peer_state.has_pending_packet = true;
-
-        peer_state.expected_receive_sequence++;
+    // The next expected packet, and we have room to keep it: store it and ACK it.
+    if (seq == state.expected_receive_sequence && !state.has_pending_packet) {
+        state.pending_packet = packet;
+        state.pending_sender = sender;
+        state.has_pending_packet = true;
+        state.expected_receive_sequence++;
+        sendAck(socket_fd, sender, state);
+        return;
     }
 
-    // ACK accepted packets and duplicates.
-    if (sequence <= peer_state.expected_receive_sequence) {
-        sendACK(socket_fd, sender, sequence);
-    }
+    // Otherwise (ahead of sequence, or no room): do NOT ACK. The sender will resend.
+    // (The old code ACKed the "no room" case and lost the packet.)
 }
 
-bool sendReliable(
-    int socket_fd,
-    const sockaddr_in& destination,
-    const Packet& packet,
-    PeerState& peer_state)
+// ---- sendReliable ---------------------------------------------------------------------------
+
+bool sendReliable(int socket_fd,
+                  const sockaddr_in& destination,
+                  const Packet& packet,
+                  PeerState& state)
 {
-    constexpr int MAX_RETRIES = 5;
-    constexpr int TIMEOUT_MS = 500;
+    using Clock = std::chrono::steady_clock;
 
     Packet outgoing = packet;
-    outgoing.header.type = PacketType::DATA;
+    outgoing.header.type = PacketType::CHAT;
+    outgoing.header.flags = Flag::RELIABLE;
+    outgoing.header.ack = 0;
+    outgoing.header.sack = 0;
+    outgoing.header.window = 0;
 
-    for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    for (int attempt = 1; attempt <= state.max_retries; attempt++) {
 
-        if (!sendPacket(socket_fd, destination, outgoing)) {
+        if (!sendPacket(socket_fd, destination, outgoing, state)) {
             cerr << "Failed to send DATA packet\n";
             return false;
         }
 
-        cout << "Sent DATA, sequence "
-                  << outgoing.header.sequence_number
-                  << ", attempt " << attempt << '\n';
+        if (state.verbose)
+            cout << "Sent DATA, sequence " << outgoing.header.seq
+                 << ", attempt " << attempt << '\n';
+
+        // Wait up to timeout_ms in total. Packets we ignore do not extend the wait.
+        const auto deadline = Clock::now() + std::chrono::milliseconds(state.timeout_ms);
 
         while (true) {
-
-            fd_set read_fds;
-            FD_ZERO(&read_fds);
-            FD_SET(socket_fd, &read_fds);
-
-            timeval timeout{};
-            timeout.tv_sec = TIMEOUT_MS / 1000;
-            timeout.tv_usec = (TIMEOUT_MS % 1000) * 1000;
-
-            const int ready = select(
-                socket_fd + 1,
-                &read_fds,
-                nullptr,
-                nullptr,
-                &timeout
-            );
-
-            if (ready == 0) {
-                cout << "ACK timeout. Retrying...\n";
+            const auto left = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                  deadline - Clock::now()).count();
+            if (left <= 0) {
+                if (state.verbose && attempt < state.max_retries)
+                    cout << "ACK timeout. Retrying...\n";
                 break;
             }
 
+            pollfd pfd{socket_fd, POLLIN, 0};
+            const int ready = poll(&pfd, 1, static_cast<int>(left));
+
+            if (ready == 0) {
+                if (state.verbose && attempt < state.max_retries)
+                    cout << "ACK timeout. Retrying...\n";
+                break;
+            }
             if (ready < 0) {
-                cerr << "select() failed\n";
+                if (errno == EINTR) continue;
+                cerr << "poll() failed\n";
                 return false;
             }
 
-            uint8_t buffer[MAX_PACKET_SIZE];
+            uint8_t buffer[RECV_BUFFER];
             sockaddr_in sender{};
             socklen_t sender_length = sizeof(sender);
 
-            const ssize_t received = recvfrom(
-                socket_fd,
-                buffer,
-                sizeof(buffer),
-                0,
-                reinterpret_cast<sockaddr*>(&sender),
-                &sender_length
-            );
-
-            if (received <= 0)
-                continue;
-
-            if (!sameAddress(sender, destination))
-                continue;
+            const ssize_t received = recvfrom(socket_fd, buffer, sizeof(buffer), 0,
+                                              reinterpret_cast<sockaddr*>(&sender),
+                                              &sender_length);
+            if (received <= 0) continue;
+            if (!sameAddress(sender, destination)) continue;
 
             Packet incoming;
-
-            const ParseResult result = decodePacket(
-                buffer,
-                static_cast<size_t>(received),
-                incoming
-            );
-
-            if (result != PARSE_OK)
+            if (decodePacket(buffer, static_cast<size_t>(received), incoming) != DecodeResult::Ok)
+                continue;                                  // damaged or malformed: drop silently
+            if (!prototypeChecksPass(incoming) || !belongsToConversation(incoming, state))
                 continue;
 
-            // Check whether this is the ACK we are waiting for.
             if (incoming.header.type == PacketType::ACK) {
-
-                if (incoming.header.sequence_number ==
-                    outgoing.header.sequence_number) {
-
-                    cout << "Received ACK for sequence "
-                              << incoming.header.sequence_number
-                              << '\n';
-
+                // ack = "next expected", so the ACK for our packet carries seq + 1.
+                if (incoming.header.ack == outgoing.header.seq + 1) {
+                    if (state.verbose)
+                        cout << "Received ACK for sequence " << outgoing.header.seq << '\n';
                     return true;
                 }
-
-                continue;
+                continue;                                  // an older (duplicate) ACK
             }
 
-            // Do not discard DATA arriving while waiting for ACK.
-            if (incoming.header.type == PacketType::DATA) {
-                handleIncomingData(
-                    socket_fd,
-                    incoming,
-                    sender,
-                    peer_state
-                );
-            }
+            // DATA from the peer while we wait: keep it, do not discard it.
+            handleIncomingData(socket_fd, incoming, sender, state);
         }
     }
 
     cerr << "Maximum retries reached. Sending failed.\n";
-
     return false;
 }
 
-bool receiveReliable(
-    int socket_fd,
-    Packet& packet,
-    sockaddr_in& sender,
-    PeerState& peer_state,
-    const sockaddr_in* required_sender)
+// ---- receiveReliable ------------------------------------------------------------------------
+
+bool receiveReliable(int socket_fd,
+                     Packet& packet,
+                     sockaddr_in& sender,
+                     PeerState& state,
+                     const sockaddr_in* required_sender)
 {
     // Deliver previously buffered DATA first.
-    if (peer_state.has_pending_packet) {
-
-        packet = move(peer_state.pending_packet);
-        sender = peer_state.pending_sender;
-
-        peer_state.has_pending_packet = false;
-
+    if (state.has_pending_packet) {
+        packet = std::move(state.pending_packet);
+        sender = state.pending_sender;
+        state.has_pending_packet = false;
         return true;
     }
 
     while (true) {
-
-        uint8_t buffer[MAX_PACKET_SIZE];
+        uint8_t buffer[RECV_BUFFER];
         sockaddr_in incoming_sender{};
         socklen_t sender_length = sizeof(incoming_sender);
 
-        const ssize_t received = recvfrom(
-            socket_fd,
-            buffer,
-            sizeof(buffer),
-            0,
-            reinterpret_cast<sockaddr*>(&incoming_sender),
-            &sender_length
-        );
-
-        if (received <= 0)
-            continue;
+        const ssize_t received = recvfrom(socket_fd, buffer, sizeof(buffer), 0,
+                                          reinterpret_cast<sockaddr*>(&incoming_sender),
+                                          &sender_length);
+        if (received < 0) {
+            if (errno == EINTR) continue;
+            return false;                                  // real socket error (or socket closed)
+        }
+        if (received == 0) continue;
 
         // Optionally accept packets from only one peer.
-        if (required_sender != nullptr &&
-            !sameAddress(incoming_sender, *required_sender)) {
+        if (required_sender != nullptr && !sameAddress(incoming_sender, *required_sender))
             continue;
-        }
 
         Packet incoming;
-
-        const ParseResult result = decodePacket(
-            buffer,
-            static_cast<size_t>(received),
-            incoming
-        );
-
-        if (result != PARSE_OK) {
-            cerr << "Invalid packet: "
-                      << parseResultText(result) << '\n';
+        const DecodeResult result = decodePacket(buffer, static_cast<size_t>(received), incoming);
+        if (result != DecodeResult::Ok) {
+            if (state.verbose)
+                cerr << "Invalid packet: " << decodeResultText(result) << '\n';
             continue;
         }
+
+        if (!prototypeChecksPass(incoming) || !belongsToConversation(incoming, state))
+            continue;
 
         // ACK packets are handled by sendReliable().
-        if (incoming.header.type == PacketType::ACK)
+        if (incoming.header.type != PacketType::CHAT)
             continue;
 
-        const uint32_t sequence = incoming.header.sequence_number;
+        const uint32_t seq = incoming.header.seq;
 
-        // Duplicate packet: ACK again, but do not deliver twice.
-        if (sequence < peer_state.expected_receive_sequence) {
-            sendACK(socket_fd, incoming_sender, sequence);
+        // Duplicate: ACK again, but do not deliver twice.
+        if (seqBefore(seq, state.expected_receive_sequence)) {
+            sendAck(socket_fd, incoming_sender, state);
             continue;
         }
 
-        // Ignore packets that are ahead of the expected sequence.
-        if (sequence > peer_state.expected_receive_sequence)
+        // Ahead of the expected sequence: ignore, the sender will resend in order.
+        if (seq != state.expected_receive_sequence)
             continue;
 
-        // Accept the expected DATA packet.
-        sendACK(socket_fd, incoming_sender, sequence);
+        // The expected DATA packet: count it first, then ACK (the ACK carries "next expected").
+        state.expected_receive_sequence++;
+        sendAck(socket_fd, incoming_sender, state);
 
-        peer_state.expected_receive_sequence++;
-
-        packet = move(incoming);
+        packet = std::move(incoming);
         sender = incoming_sender;
-
         return true;
     }
 }
 
-}
+} // namespace Protocol

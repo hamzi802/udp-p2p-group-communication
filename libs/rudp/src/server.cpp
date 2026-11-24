@@ -7,6 +7,8 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 
+using namespace std;
+
 Server::Server(int port)
     : socket_fd(-1),
       port(port),
@@ -53,7 +55,7 @@ bool Server::start()
     running = true;
 
     cout << "Server listening on UDP port "
-              << port << '\n';
+         << port << '\n';
 
     return true;
 }
@@ -85,19 +87,19 @@ void Server::run()
             client_connected = true;
 
             cout << "Client connected: "
-                      << inet_ntoa(sender.sin_addr)
-                      << ':' << ntohs(sender.sin_port)
-                      << '\n';
+                 << inet_ntoa(sender.sin_addr)
+                 << ':' << ntohs(sender.sin_port)
+                 << '\n';
         }
 
-        cout << "Client: " << incoming.payload << '\n';
+        const string text = Protocol::payloadToString(incoming.payload);
+        cout << "Client: " << text << '\n';
 
         // Echo the received message.
         Protocol::Packet response;
 
-        response.header.type = Protocol::PacketType::DATA;
-        response.header.sequence_number = server_sequence;
-        response.payload = "Server received: " + incoming.payload;
+        response.header.seq = server_sequence;
+        response.payload = Protocol::stringToPayload("Server received: " + text);
 
         const bool sent = Protocol::sendReliable(
             socket_fd,

@@ -1,1 +1,0 @@
-/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/server.dir/link.d "CMakeFiles/server.dir/home/musab/Desktop/ProjCN/udp-p2p-group-communication/libs/rudp/src/server.cpp.o" "CMakeFiles/server.dir/home/musab/Desktop/ProjCN/udp-p2p-group-communication/libs/rudp/src/protocol.cpp.o" -o server

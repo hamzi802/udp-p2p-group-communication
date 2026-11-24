@@ -1,14 +1,15 @@
 #ifndef CLIENT_H
 #define CLIENT_H
 
-#include "protocol.h"
-
+#include <netinet/in.h>
 #include <string>
+
+#include "protocol.h"
 
 class Client {
 private:
     int socket_fd;
-    string server_ip;
+    std::string server_ip;
     int server_port;
     sockaddr_in server_address;
     bool running;
@@ -17,7 +18,7 @@ private:
     Protocol::PeerState server_state;
 
 public:
-    Client(const string& ip, int port);
+    Client(const std::string& ip, int port);
     bool start();
     void run();
     void stop();

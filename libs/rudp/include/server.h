@@ -1,6 +1,8 @@
 #ifndef SERVER_H
 #define SERVER_H
 
+#include <netinet/in.h>
+
 #include "protocol.h"
 
 class Server {

@@ -1,4 +1,0 @@
-/home/musab/Desktop/ProjCN/udp-p2p-group-communication/libs/rudp/tests/build/CMakeFiles/server.dir
-/home/musab/Desktop/ProjCN/udp-p2p-group-communication/libs/rudp/tests/build/CMakeFiles/client.dir
-/home/musab/Desktop/ProjCN/udp-p2p-group-communication/libs/rudp/tests/build/CMakeFiles/edit_cache.dir
-/home/musab/Desktop/ProjCN/udp-p2p-group-communication/libs/rudp/tests/build/CMakeFiles/rebuild_cache.dir
